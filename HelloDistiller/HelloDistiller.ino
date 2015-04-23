@@ -94,11 +94,12 @@ int UrovenBarda = 250;        // Уровень сигнала, достижен
 
 #define PIN_DVIGATEL 28 // Пин управления двигателем в фазовом режиме (не исползуется).
 
-#define PIN_NASOS_NBK 12  // Пин управления насосом НБК через ШИМ (двигатель не шаговый, подключать полевик, например IRL2203 через ULN2003 или транзисторный ключ или драйвер полевика).
+#define PIN_NASOS_NBK 12  // Пин управления насосом НБК через ШИМ (двигатель не шаговый, подключать полевик, например IRL2703 или транзисторный ключ или драйвер полевика).
 unsigned char zPS = 0; // Число прерываний нуля за секунду.
-unsigned char zPSOut = 0; // Число прерываний нуля за секунду.
+unsigned char zPSOut = 0; // Число прерываний нуля за секунду для вывода на экран.
 #define PIN_LIGHT 10
 unsigned char LedLight = 200;
+
 int TimeStabKolonna = 900; // Время стабилизации колонны (положительное значение - время от последнего изменения температуры, отрицательное - абсолютное время).
 
 #define MAX_TABLE_T 200
@@ -113,6 +114,7 @@ unsigned int tableSQ[MAX_TABLE_SQRT + 1];     //Значение квадрат�
 int timeNBK = 0;   // Время работы насоса НБК в секундах со скоростью SpeedNKB. По истечении этого времени насос остановится
 
 #define PIN_MIXER     32  // Пин управления мешалокой 
+
 int timeMIXER = 0; // Время работы двигателя миксера в секундах. По истечении этого времени мешалка остановится
 
 int time1 = 0;   // Таймер для отсчета секунд 1
@@ -153,6 +155,9 @@ unsigned int NaprPeregrev = 300;  // Какое среднеквадратичн
 #define USE_ASC712 0           // Надо ли исполозовать датчик тока
 #define PIN_DS18B20 37
 #define RELAY_HIGH 1         // Какой сигнал подавать на релейные выходы мешалки и разгона 
+
+#define ALL_OFF_HIGH 1         // Какой сигнал подавать на релейные выходы мешалки и разгона 
+
 #define PIN_TRIAC  36    // Управление симистором реализовано через PIN 36
 //#define USE_CORR_ASC712 0  // Надо ли использовать датчик тока для вывода фактической среднеквадратичной мощности.
 char CorrectASC712;      // Признак того, как надо использовать датчик asc712 
@@ -517,9 +522,10 @@ unsigned char nPopr = 0;                     // Текущий датчик, к�
 
 #define PIN_SOUND 11    // На 11 пине сидит спикер от компа (мощная штука, 15 ом, потребляет 300ма, поэтому ей пока не злоупотребляю, может заменить ее в дальнейшем на Пьезо?)
 
-//#define PIN_REG_ON 30    // Пин для подачи напряжения на регулятор ТЭНа (может работать и без него)
 #define PIN_RZG_ON 30    // Пин для включения режима разгона             (может работать и без него)
 #define PIN_ALL_OFF 31  // Пин, при подаче напряжения на который вырыбаеся вообще все (например выключается УЗО) (может работать и без него)
+#define PIN_RST_WDT 43  // Пин, на который периодически меняется значение с 0 на 1 (раз в 5 секунд обычно) служит для отслеживаения зависания Ардуины внешним устройством.
+
 char flAllOff;           // Флаг того, что все выключено
 
 unsigned char Counter1 = 0;
@@ -870,6 +876,7 @@ void setup()
 
 	pinMode(PIN_TRIAC, OUTPUT);
 	pinMode(PIN_ALL_OFF, OUTPUT);
+	pinMode(PIN_RST_WDT, OUTPUT);
 
 	pinMode(PIN_RZG_ON, OUTPUT);
 	digitalWrite(PIN_RZG_ON, !RELAY_HIGH);
@@ -1165,9 +1172,9 @@ void setup()
 	CloseAllKLP();
 	//  digitalWrite(PIN_REG_ON,LOW);
 	digitalWrite(PIN_RZG_ON, !RELAY_HIGH);
-	digitalWrite(PIN_ALL_OFF, HIGH);
+	digitalWrite(PIN_ALL_OFF, ALL_OFF_HIGH);
 	delay(100);
-	digitalWrite(PIN_ALL_OFF, LOW);
+	digitalWrite(PIN_ALL_OFF, !ALL_OFF_HIGH);
 	flAllOff = 0;
 
 	digitalWrite(PIN_TERMOSTAT_ON, LOW);
@@ -5069,7 +5076,7 @@ void ProcessRectif()
 		KlClose[KLP_VODA] = PER_KLP_CLOSE;
 		//    digitalWrite(PIN_REG_ON,HIGH);
 		digitalWrite(PIN_RZG_ON, RELAY_HIGH);
-		digitalWrite(PIN_ALL_OFF, LOW);
+		digitalWrite(PIN_ALL_OFF, !ALL_OFF_HIGH);
 		flAllOff = 0;
 		StateMachine = 2;
 		if (BeepStateProcess) my_beep(BEEP_LONG);
@@ -5368,7 +5375,7 @@ void ProcessRectif()
 		break;
 
 	case 101: // Превышение температуры в ТСА!!!
-		my_beep(20 * BEEP_LONG);
+		my_beep(5 * BEEP_LONG);
 	case 100:// Конечное состояние автомата
 
 		// Отключаем на всякий случай все!
@@ -5380,7 +5387,7 @@ void ProcessRectif()
 		CloseAllKLP();
 		//    digitalWrite(PIN_REG_ON,LOW);
 		digitalWrite(PIN_RZG_ON, !RELAY_HIGH);
-		digitalWrite(PIN_ALL_OFF, HIGH);
+		digitalWrite(PIN_ALL_OFF, ALL_OFF_HIGH);
 		flAllOff = 1;
 		// Отключаем подчиненные контроллеры
 		digitalWrite(PIN_SLAVE_0, 0);
@@ -5452,7 +5459,7 @@ void ProcessNDRF()
 		KlClose[KLP_VODA] = PER_KLP_CLOSE;
 		//    digitalWrite(PIN_REG_ON,HIGH);
 		digitalWrite(PIN_RZG_ON, RELAY_HIGH);
-		digitalWrite(PIN_ALL_OFF, LOW);
+		digitalWrite(PIN_ALL_OFF, !ALL_OFF_HIGH);
 		flAllOff = 0;
 		StateMachine = 2;
 		if (BeepStateProcess) my_beep(BEEP_LONG);
@@ -5637,7 +5644,7 @@ void ProcessNDRF()
 		}
 		break;
 	case 101: // Превышение температуры в ТСА!!!
-		my_beep(20 * BEEP_LONG);
+		my_beep(5 * BEEP_LONG);
 	case 100:// Конечное состояние автомата
 
 		// Отключаем на всякий случай все!
@@ -5649,7 +5656,7 @@ void ProcessNDRF()
 		CloseAllKLP();
 		//    digitalWrite(PIN_REG_ON,LOW);
 		digitalWrite(PIN_RZG_ON, !RELAY_HIGH);
-		digitalWrite(PIN_ALL_OFF, HIGH);
+		digitalWrite(PIN_ALL_OFF, ALL_OFF_HIGH);
 		flAllOff = 1;
 
 		break;
@@ -5726,7 +5733,7 @@ void ProcessNBK()
 		break;
 	case 101: // Превышение температуры в ТСА!!!
 		break;
-		my_beep(20 * BEEP_LONG);
+		my_beep(5 * BEEP_LONG);
 	case 100:// Конечное состояние автомата
 		SpeedNBK = 0;
 		timeNBK = 0;
@@ -5735,7 +5742,7 @@ void ProcessNBK()
 		CloseAllKLP();
 		//    digitalWrite(PIN_REG_ON,LOW);
 		digitalWrite(PIN_RZG_ON, !RELAY_HIGH);
-		digitalWrite(PIN_ALL_OFF, HIGH);
+		digitalWrite(PIN_ALL_OFF, ALL_OFF_HIGH);
 		flAllOff = 1;
 		if (FlToGSM && lastSMSState != StateMachine) StateToSMS();
 		break;
@@ -5778,7 +5785,7 @@ void ProcessSimpleDistill()
 		if (BeepStateProcess) my_beep(BEEP_LONG);
 		//    digitalWrite(PIN_REG_ON,HIGH);
 		digitalWrite(PIN_RZG_ON, RELAY_HIGH);
-		digitalWrite(PIN_ALL_OFF, LOW);
+		digitalWrite(PIN_ALL_OFF, !ALL_OFF_HIGH);
 		flAllOff = 0;
 
 	case 2: // Ожидание, пока прогреется термометр в дефлегматоре
@@ -5845,7 +5852,7 @@ void ProcessSimpleDistill()
 		}
 		break;
 	case 101: // Превышение температуры в ТСА!!!
-		my_beep(20 * BEEP_LONG);
+		my_beep(5 * BEEP_LONG);
 	case 100:// Конечное состояние автомата
 		// Отключаем на всякий случай все!
 		if (FlToGSM && lastSMSState != StateMachine) StateToSMS();
@@ -5859,7 +5866,7 @@ void ProcessSimpleDistill()
 		CloseAllKLP();
 		//    digitalWrite(PIN_REG_ON,LOW);
 		digitalWrite(PIN_RZG_ON, !RELAY_HIGH);
-		digitalWrite(PIN_ALL_OFF, HIGH);
+		digitalWrite(PIN_ALL_OFF, ALL_OFF_HIGH);
 		flAllOff = 1;
 
 		break;
@@ -5930,7 +5937,7 @@ void ProcessSimpleGlv()
 		StateMachine = 2;
 		//    digitalWrite(PIN_REG_ON,HIGH);
 		digitalWrite(PIN_RZG_ON, RELAY_HIGH);
-		digitalWrite(PIN_ALL_OFF, LOW);
+		digitalWrite(PIN_ALL_OFF, !ALL_OFF_HIGH);
 		flAllOff = 0;
 
 		if (BeepStateProcess) my_beep(BEEP_LONG);
@@ -6028,7 +6035,7 @@ void ProcessSimpleGlv()
 		CloseAllKLP();
 		//    digitalWrite(PIN_REG_ON,LOW);
 		digitalWrite(PIN_RZG_ON, !RELAY_HIGH);
-		digitalWrite(PIN_ALL_OFF, HIGH);
+		digitalWrite(PIN_ALL_OFF, ALL_OFF_HIGH);
 		flAllOff = 1;
 
 		break;
@@ -6070,7 +6077,7 @@ void ProcessDistilDefl()
 		StateMachine = 2;//Этот процесс пока заблокирован, сразу идем на окончание.
 		//    digitalWrite(PIN_REG_ON,HIGH);
 		digitalWrite(PIN_RZG_ON, RELAY_HIGH);
-		digitalWrite(PIN_ALL_OFF, LOW);
+		digitalWrite(PIN_ALL_OFF, !ALL_OFF_HIGH);
 		flAllOff = 0;
 		if (BeepStateProcess) my_beep(BEEP_LONG);
 		deltaPower = 0;
@@ -6246,7 +6253,7 @@ void ProcessDistilDefl()
 		CloseAllKLP();
 		//    digitalWrite(PIN_REG_ON,LOW);
 		digitalWrite(PIN_RZG_ON, !RELAY_HIGH);
-		digitalWrite(PIN_ALL_OFF, HIGH);
+		digitalWrite(PIN_ALL_OFF, ALL_OFF_HIGH);
 		flAllOff = 1;
 
 		break;
@@ -6640,7 +6647,7 @@ void ProcessRazvarZerno()
 		CloseAllKLP();
 		//    digitalWrite(PIN_REG_ON,LOW);
 		digitalWrite(PIN_RZG_ON, !RELAY_HIGH);
-		digitalWrite(PIN_ALL_OFF, HIGH);
+		digitalWrite(PIN_ALL_OFF, ALL_OFF_HIGH);
 		flAllOff = 1;
 
 		break;
@@ -6707,7 +6714,7 @@ void ProcessHLDZatorByChiller()
 		CloseAllKLP();
 		//    digitalWrite(PIN_REG_ON,LOW);
 		digitalWrite(PIN_RZG_ON, !RELAY_HIGH);
-		digitalWrite(PIN_ALL_OFF, HIGH);
+		digitalWrite(PIN_ALL_OFF, ALL_OFF_HIGH);
 		flAllOff = 1;
 
 		break;
@@ -6732,7 +6739,7 @@ void ProcessTermostat()
 		{
 			digitalWrite(PIN_TERMOSTAT_OFF, LOW);// Включаем охлаждение
 			digitalWrite(PIN_TERMOSTAT_ON, HIGH);// Выключаем нагрев
-			UstPower = Power; // Подаем полную мощность на ТЭНЫ
+			UstPower = UstPowerReg; // Подаем полную мощность на ТЭНЫ
 			break;
 		}
 		StateMachine = 3;
@@ -6750,7 +6757,7 @@ void ProcessTermostat()
 		if (BeepStateProcess) my_beep(BEEP_LONG);
 		break;
 	case 100:// Конечное состояние автомата
-		digitalWrite(PIN_ALL_OFF, HIGH);
+		digitalWrite(PIN_ALL_OFF, ALL_OFF_HIGH);
 		flAllOff = 1;
 		digitalWrite(PIN_TERMOSTAT_ON, LOW);// Выключаем нагрев
 		digitalWrite(PIN_TERMOSTAT_OFF, LOW);// Включаем охлаждение
@@ -6783,7 +6790,7 @@ void ProcessTimerMaxPower()
 	case 100:// Конечное состояние автомата
 		if (FlToGSM && lastSMSState != StateMachine) StateToSMS();
 		if (BeepEndProcess) my_beep(BEEP_LONG);
-		digitalWrite(PIN_ALL_OFF, HIGH);
+		digitalWrite(PIN_ALL_OFF, ALL_OFF_HIGH);
 		flAllOff = 1;
 		UstPower = 0; // Убираем мощность с ТЭНов
 		break;
@@ -6857,7 +6864,7 @@ void ProcessBeerCloneBrau()
 	case 100:// Конечное состояние автомата
 		if (FlToGSM && lastSMSState != StateMachine) StateToSMS();
 		if (BeepEndProcess) my_beep(BEEP_LONG);
-		digitalWrite(PIN_ALL_OFF, HIGH);
+		digitalWrite(PIN_ALL_OFF, ALL_OFF_HIGH);
 		CloseAllKLP();
 		flAllOff = 1;
 		UstPower = 0; // Убираем мощность с ТЭНов
@@ -7205,6 +7212,7 @@ void loop()
 	static char  FlFindPowerKLP;
 	char flErrDs18;
 	unsigned int tic;
+	static char trig_on = true; //Признак того, что выдаем в данном цикле - 0 или 1
 
 #ifdef DEBUG
 	my_debug();
@@ -7397,6 +7405,9 @@ void loop()
 	if (flNeedAnalyse == 1)
 	{
 
+		trig_on = !trig_on;
+		digitalWrite(PIN_RST_WDT, trig_on); // Выдаем признак работы для внешнего контроля
+
 		if (DispDopInfo == 3) my_beep(BEEP_LONG); // Сначала пищим, предупреждая о необходимости смены тары
 
 #ifdef USE_SLAVE
@@ -7513,7 +7524,7 @@ void loop()
 
 			digitalWrite(PIN_RZG_ON, !RELAY_HIGH);
 			digitalWrite(PIN_TRIAC, LOW);
-			digitalWrite(PIN_ALL_OFF, HIGH);
+			digitalWrite(PIN_ALL_OFF, ALL_OFF_HIGH);
 			flAllOff = 1;
 			break;
 
@@ -7619,7 +7630,7 @@ void loop()
 							if (!strcmp(sms_stop, vid_sms))
 							{
 								StateMachine = 100;
-								digitalWrite(PIN_ALL_OFF, HIGH);
+								digitalWrite(PIN_ALL_OFF, ALL_OFF_HIGH);
 								flAllOff = 1;
 
 #ifdef TESTGSM
